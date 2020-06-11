@@ -5,11 +5,11 @@ use smallpt::*;
 use minifb::{Key, Window, WindowOptions};
 
 fn main() {
-    let num_samples = 128;
-    let width = 512;
-    let height = 512;
+    const NUM_SAMPLES: u32 = 16;
+    const WIDTH: usize = 512;
+    const HEIGHT: usize = 512;
 
-    let mut backbuffer = vec![Vec3::new(0.0, 0.0, 0.0); width * height];
+    let mut backbuffer = vec![Vec3::new(0.0, 0.0, 0.0); WIDTH * HEIGHT];
 
     let mut scene = Scene::init();
 
@@ -89,18 +89,24 @@ fn main() {
         up: Vec3::new(0.0, 1.0, 0.0).normalize(),
     };
 
-    let mut buffer: Vec<u32> = vec![0; width * height];
-    let mut window = Window::new("smallpt in Rust", width, height, WindowOptions::default())
+    let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
+    let mut window = Window::new("smallpt in Rust", WIDTH, HEIGHT, WindowOptions::default())
         .unwrap_or_else(|e| {
             panic!("{}", e);
         });
 
     // Render
-    let mut num_rays = 0;
-    trace(&scene, &camera, width, height, num_samples, &mut backbuffer, &mut num_rays);
-
+    let mut iterations = 0;
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        for i in 0..width * height {
+        let mut current_backbuffer = vec![Vec3::new(0.0, 0.0, 0.0); WIDTH * HEIGHT];
+        let mut num_rays = 0;
+        trace(&scene, &camera, WIDTH, HEIGHT, NUM_SAMPLES, &mut current_backbuffer, &mut num_rays);
+        for (pdest, p) in backbuffer.iter_mut().zip(current_backbuffer.iter()) {
+            *pdest = (*pdest * iterations as f32 + *p) / (iterations + 1) as f32;
+        }
+        iterations += 1;
+
+        for i in 0..WIDTH * HEIGHT {
             let color = saturate(tonemap(backbuffer[i]));
 
             let r = (color.x * 255.0).round() as u32;
@@ -110,6 +116,6 @@ fn main() {
             buffer[i] = (r << 16) | (g << 8) | b;
         }
 
-        window.update_with_buffer(&buffer, width, height).unwrap();
+        window.update_with_buffer(&buffer, WIDTH, HEIGHT).unwrap();
     }
 }
